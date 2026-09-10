@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from celery.result import AsyncResult
 from tasks import generate_audio_response_task, generate_text_response_task
+from slide_state import set_current_slide, get_current_slide
 import os
 
 os.environ["PYTHONPATH"] = f"{os.environ.get('PYTHONPATH', '')}:{os.getcwd()}"
@@ -14,13 +15,14 @@ def generate_response(data, callback):
     # Fetch the data from the request
     audio_data = data['audio']
     subject = data['subject']
+    participation_level = float(data.get('participation_level', 0.5))
     personality = data['personality']
     intelligence = data['intelligence']
     interest = data['interest']
     happiness = data['happiness']
 
     # Start asynchronous task and return the task ID
-    task = callback.delay(audio_data, subject, personality, intelligence, interest, happiness)
+    task = callback.delay(audio_data, subject, personality, intelligence, interest, happiness, participation_level)
     return jsonify({"task_id": task.id}), 202
 
 @app.route('/generate_text_response', methods=['POST'])
@@ -55,6 +57,12 @@ def get_result(task_id):
             })
     else:
         return jsonify({"status": "pending"})
+
+@app.route('/slide', methods=['POST'])
+def slide_update():
+    data = request.get_json(force=True) or {}
+    set_current_slide(data.get("current_slide", 0))
+    return jsonify({"ok": True, "current_slide": get_current_slide()})
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
